@@ -3,10 +3,23 @@
 import { useState, useRef, useCallback, DragEvent, ChangeEvent } from 'react'
 import Link from 'next/link'
 import * as XLSX from 'xlsx'
-import Papa from 'papaparse'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import styles from './SplitExcel.module.css'
+
+// Native CSV parser — no external dependency
+function parseCsv(text: string): Record<string, string>[] {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
+  if (lines.length < 2) return []
+  const sep = lines[0].includes(';') ? ';' : ','
+  const headers = lines[0].split(sep).map(h => h.replace(/^"|"$/g, '').trim())
+  return lines.slice(1).map(line => {
+    const vals = line.split(sep).map(v => v.replace(/^"|"$/g, ''))
+    const row: Record<string, string> = {}
+    headers.forEach((h, i) => { row[h] = vals[i] ?? '' })
+    return row
+  })
+}
 
 const COLONNES = ['LOGIN', 'NOM', 'PRENOM', 'NUMERO', 'IMSI', 'EMAIL', 'ETAT', 'PARENT']
 
@@ -32,15 +45,7 @@ function readFileAsRows(file: File): Promise<Record<string, string>[]> {
     if (ext === 'csv') {
       reader.onload = (e) => {
         const text = e.target?.result as string
-        // Try multiple separators
-        const sep = text.split('\n')[0].includes(';') ? ';' : ','
-        Papa.parse(text, {
-          header: true,
-          delimiter: sep,
-          skipEmptyLines: true,
-          complete: (r) => resolve(r.data as Record<string, string>[]),
-          error: reject,
-        })
+        resolve(parseCsv(text))
       }
       reader.onerror = reject
       reader.readAsText(file, 'utf-8')
@@ -59,7 +64,6 @@ function readFileAsRows(file: File): Promise<Record<string, string>[]> {
 }
 
 function rowsToCsvString(rows: Record<string, string>[]): string {
-  // BOM + header
   const header = COLONNES.join(';')
   const lines = rows.map(r => COLONNES.map(c => `"${(r[c] ?? '').replace(/"/g, '""')}"`).join(';'))
   return '\uFEFF' + [header, ...lines].join('\r\n')
@@ -74,7 +78,6 @@ export default function SplitExcelClient() {
   const [zipBlob, setZipBlob] = useState<Blob | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // ── File management ──
   const addFiles = useCallback((incoming: File[]) => {
     const valid = incoming.filter(f => /\.(csv|xlsx|xls)$/i.test(f.name))
     setFiles(prev => {
@@ -87,20 +90,17 @@ export default function SplitExcelClient() {
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault(); setDragging(false)
-    addFiles([...e.dataTransfer.files])
-  }
+addFiles(Array.from(e.dataTransfer.files))  }
   const onDragOver = (e: DragEvent) => { e.preventDefault(); setDragging(true) }
   const onDragLeave = () => setDragging(false)
   const onInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) addFiles([...e.target.files])
-  }
+if (e.target.files) addFiles(Array.from(e.target.files))  }
 
   const clear = () => {
     setFiles([]); setResults([]); setZipBlob(null)
     if (inputRef.current) inputRef.current.value = ''
   }
 
-  // ── Process ──
   const process = async () => {
     if (files.length === 0) return
     setProcessing(true)
@@ -115,8 +115,6 @@ export default function SplitExcelClient() {
       const nomBase = file.name.replace(/\.[^.]+$/, '')
       try {
         const rawRows = await readFileAsRows(file)
-
-        // Normalize columns
         const rows = rawRows.map(r => {
           const out: Record<string, string> = {}
           COLONNES.forEach(c => { out[c] = String(r[c] ?? '') })
@@ -154,7 +152,6 @@ export default function SplitExcelClient() {
 
   return (
     <div className={styles.page}>
-      {/* Header */}
       <div className={styles.header}>
         <Link href="/" className={styles.backLink}>← Accueil</Link>
         <div className={styles.meta}>
@@ -169,11 +166,9 @@ export default function SplitExcelClient() {
       </div>
 
       <div className={styles.columns}>
-        {/* Left panel */}
         <div className={styles.panel}>
           <p className={styles.panelLabel}>Fichiers à traiter</p>
 
-          {/* Drop zone */}
           <div
             className={`${styles.dropZone} ${dragging ? styles.dragging : ''}`}
             onDrop={onDrop}
@@ -196,7 +191,6 @@ export default function SplitExcelClient() {
             />
           </div>
 
-          {/* File list */}
           {files.length > 0 && (
             <div className={styles.fileList}>
               {files.map((f, i) => (
@@ -212,7 +206,6 @@ export default function SplitExcelClient() {
             </div>
           )}
 
-          {/* Row limit config */}
           <div className={styles.configBox}>
             <label className={styles.configLabel} htmlFor="maxRows">
               Lignes par fichier
@@ -241,7 +234,6 @@ export default function SplitExcelClient() {
             </div>
           </div>
 
-          {/* Actions */}
           <div className={styles.actions}>
             <button
               className={styles.btnPrimary}
@@ -253,7 +245,6 @@ export default function SplitExcelClient() {
             <button className={styles.btnGhost} onClick={clear}>Tout effacer</button>
           </div>
 
-          {/* Columns info */}
           <div className={styles.infoBox}>
             <strong>Colonnes conservées</strong>
             <div className={styles.tags}>
@@ -265,7 +256,6 @@ export default function SplitExcelClient() {
           </div>
         </div>
 
-        {/* Right panel */}
         <div className={styles.panel}>
           <p className={styles.panelLabel}>Résultats</p>
 
@@ -285,7 +275,6 @@ export default function SplitExcelClient() {
 
           {results.length > 0 && (
             <>
-              {/* Summary */}
               <div className={styles.summary}>
                 <div className={styles.summaryItem}>
                   <span className={styles.summaryNum}>{results.filter(r => !r.error).length}</span>
@@ -303,7 +292,6 @@ export default function SplitExcelClient() {
                 </div>
               </div>
 
-              {/* File results */}
               <div className={styles.resultsList}>
                 {results.map((r, i) => (
                   <div key={i} className={styles.resultFile}>
@@ -333,7 +321,6 @@ export default function SplitExcelClient() {
                 ))}
               </div>
 
-              {/* Download */}
               {zipBlob && (
                 <button className={styles.btnDownload} onClick={download}>
                   ⬇ Télécharger les fichiers (.zip)
