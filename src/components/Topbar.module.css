@@ -1,0 +1,30 @@
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--dark-1);
+  border-bottom: 1px solid var(--dark-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2rem;
+  height: 58px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 1.2rem;
+  letter-spacing: -0.5px;
+}
+.brandIcon { font-size: 1.3rem; }
+.accent { color: var(--orange); }
+.nav { display: flex; gap: 1.5rem; }
+.navLink {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--grey-2);
+  transition: color 0.2s;
+}
+.navLink:hover, .active { color: var(--orange); }
