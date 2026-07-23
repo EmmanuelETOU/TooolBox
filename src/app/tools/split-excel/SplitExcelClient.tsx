@@ -48,7 +48,7 @@ function readFileAsRows(file: File): Promise<Record<string, string>[]> {
         resolve(parseCsv(text))
       }
       reader.onerror = reject
-      reader.readAsText(file, 'utf-8')
+      reader.readAsText(file, 'windows-1252')
     } else {
       reader.onload = (e) => {
         const data = new Uint8Array(e.target?.result as ArrayBuffer)
