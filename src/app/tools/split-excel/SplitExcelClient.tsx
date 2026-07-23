@@ -65,7 +65,7 @@ function readFileAsRows(file: File): Promise<Record<string, string>[]> {
 
 function rowsToCsvString(rows: Record<string, string>[]): string {
   const header = COLONNES.join(';')
-  const lines = rows.map(r => COLONNES.map(c => `"${(r[c] ?? '').replace(/"/g, '""')}"`).join(';'))
+  const lines = rows.map(r => COLONNES.map(c => (r[c] ?? '').replace(/"/g, '""')).join(';'))
   return '\uFEFF' + [header, ...lines].join('\r\n')
 }
 
